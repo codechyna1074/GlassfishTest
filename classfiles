@@ -1,0 +1,233 @@
+package com.glo.testJMS;
+import javax.jms.JMSException;
+//import javax.jms.ObjectMessage;
+import javax.annotation.Resource;
+import javax.jms.ConnectionFactory;
+import javax.jms.MessageProducer;
+import javax.jms.Connection;
+//import javax.jms.ConnectionFactory;
+import javax.jms.Queue;
+import javax.jms.QueueConnection;
+//import javax.jms.QueueConnectionFactory;
+//import javax.jms.QueueSender;
+//import javax.jms.QueueSession;
+import javax.jms.Session;
+import javax.jms.TextMessage;
+//import javax.naming.InitialContext;
+public class testJMSSender {
+	@Resource(mappedName = "jms/CourseManagemenCF")
+	private static ConnectionFactory connectionFactory;
+	@Resource(mappedName = "jms/courseManagementQueue")
+	private QueueConnection connection;
+	//private QueueSession session;
+	private Queue queue;
+	
+	public testJMSSender() throws Exception {
+		//Create JMS Connection, session, and queue objects
+		/**InitialContext initCtx = new InitialContext();
+		QueueConnectionFactory connectionFactory =(QueueConnectionFactory)initCtx.lookup("jms/CourseManagemenCF");
+		connection = connectionFactory.createQueueConnection();
+		connection.start();
+		session = connection.createQueueSession(false,Session.AUTO_ACKNOWLEDGE);
+		queue = (Queue)initCtx.lookup("jms/courseManagementQueue");**/
+		
+		
+		
+		
+	}
+	public void close() {
+		if (connection != null) {
+			try {
+			connection.close();
+			} catch (JMSException e) {
+			e.printStackTrace();
+			}
+			}
+	}
+	@Override
+	protected void finalize() throws Throwable {
+		close(); //clean up
+		super.finalize();
+	}
+	public void sendJMSMessage (String msg) throws	Exception {
+		try {
+		Connection connection = connectionFactory.createConnection();
+		Session session = connection.createSession(false,Session.AUTO_ACKNOWLEDGE);
+		MessageProducer messageProducer;
+		TextMessage textMessage;
+		messageProducer = session.createProducer(queue);
+		textMessage = session.createTextMessage();
+		//Send CourseDTO object to JMS Queue
+			/*QueueSender sender = session.createSender(queue);
+			TextMessage TextMessage = session.createTextMessage(msg);
+			sender.send(TextMessage);*/
+			textMessage.setText(msg);
+			textMessage.getText();
+			//System.out.println("Sending the following message: "+ textMessage.getText());
+			messageProducer.send(textMessage);
+			/*textMessage.setText("Do you copy?");
+			System.out.println("Sending the following message: "+ textMessage.getText());
+			messageProducer.send(textMessage);
+			textMessage.setText("Good bye!");
+			System.out.println("Sending the following message: "+ textMessage.getText());
+			messageProducer.send(textMessage);*/
+			messageProducer.close();
+			session.close();
+			connection.close();
+		} catch (JMSException e) {
+			e.printStackTrace();
+			}
+			
+		}
+
+}
+package com.glo.testJMS;
+import javax.jms.JMSException;
+import javax.jms.MessageListener;
+//import javax.jms.ObjectMessage;
+import javax.jms.Queue;
+import javax.jms.QueueConnection;
+import javax.jms.QueueConnectionFactory;
+import javax.jms.QueueReceiver;
+import javax.jms.QueueSession;
+import javax.naming.InitialContext;
+import javax.jms.*;
+public class testJMSReceiver {
+	private QueueConnection connection;
+	private QueueSession session;
+	private Queue queue;
+	private String receiverName;
+	public testJMSReceiver(String name) throws Exception{
+		this.receiverName = name;
+		//look up JMS connection factory
+		InitialContext initCtx = new InitialContext();
+		QueueConnectionFactory connectionFactory =(QueueConnectionFactory)initCtx.lookup("jms/CourseManagemenCF");
+		//create JMS connection
+		connection = connectionFactory.createQueueConnection();
+		connection.start();
+		//create JMS session
+		session = connection.createQueueSession(false,Session.AUTO_ACKNOWLEDGE);
+		//look up queue
+		queue = (Queue)initCtx.lookup("jms/courseManagementQueue");
+		//topicPublisher = new CourseTopicPublisher();
+		QueueReceiver receiver = session.createReceiver(queue);
+		//register message listener
+		receiver.setMessageListener(new MessageListener() {
+		@Override
+		public void onMessage(Message message) {
+			//we expect ObjectMessage here; of type CourseDTO
+			//skipping validation
+			try {
+			//((TextMessage)message).getText();
+			//process addCourse action. For example, save it in the	database
+			System.out.println("Received testJMSSender message - " +	((TextMessage)message).getText() + " in Receiver " + receiverName);
+			} catch (Exception e) {
+				e.printStackTrace();
+				//TODO: handle and log exception
+				}
+			  }
+			});
+		}
+	public void stop() {
+		if (connection != null) {
+			try {
+				connection.close();
+				} catch (JMSException e) {
+				e.printStackTrace();
+				//TODO: log exception
+				}
+				
+		}
+
+	}
+}
+package com.glo.testJMS;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import javax.ejb.EJB;
+//import javax.ejb.Local;
+//import javax.ejb.Remote;
+//import javax.ejb.Stateless;
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+//@Remote
+//@Stateless
+@WebServlet("/TestJMSServlet")
+public class TestJMSServlet extends HttpServlet {
+	
+	//private static final long serialVersionUID = 1293410733784012792L;
+	private static final long serialVersionUID = 1L;
+	
+	@EJB testJMSSender sender;
+	@EJB testJMSReceiver receiver;
+	
+	
+	 protected void processRequest(HttpServletRequest request, HttpServletResponse response) throws Exception {
+	        response.setContentType("text/html;charset=UTF-8");
+	        try (PrintWriter out = response.getWriter()) {
+	            out.println("");
+	            out.println("");
+	            out.println("JMS2 Send Message");
+	            out.println("");
+	            out.println("");
+	            out.println("JMS2 Send/Receive Message using JMS2 " + request.getContextPath() + "");
+	            String m = "Hello there";
+	            sender.sendJMSMessage(m);
+	            out.format("Message sent: %1$s.", m);
+	            out.println("Receiving message...");
+	            String message = receiver.toString();
+	            out.println("Message rx: " + message);
+	            out.println("");
+	            out.println("");
+	        }
+	    }
+	    @Override
+	    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+	        try {
+				processRequest(request, response);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+	    }
+	 
+	    @Override
+	    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+	            throws ServletException, IOException {
+	        try {
+				processRequest(request, response);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+	    }
+	    @Override
+	    public String getServletInfo() {
+	        return "Short description";
+	    }
+
+}
+---index.jsp
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Insert title here</title>
+</head>
+<body>
+<h1>Welcome to JSP</h1>
+<br>
+<form action="TestJMSServlet">
+	<input type="submit" value="Send">
+</form>
+
+
+</body>
+</html>
+
